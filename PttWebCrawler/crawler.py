@@ -56,7 +56,7 @@ class PttWebCrawler(object):
                 article_id = args.a
                 self.parse_article(article_id, board)
 
-    def parse_articles(self, start, end, board, path='.', timeout=3):
+    def parse_articles(self, start, end, board, path='.', timeout=3, skip_links=list):
         filename = board + '-' + str(start) + '-' + str(end) + '.json'
         filename = os.path.join(path, filename)
         self.store(filename, u'{"articles": [', 'w')
@@ -77,6 +77,8 @@ class PttWebCrawler(object):
                     # ex. link would be <a href="/bbs/PublicServan/M.1127742013.A.240.html">Re: [問題] 職等</a>
                     href = div.find('a')['href']
                     link = self.PTT_URL + href
+                    if link in skip_links:
+                        continue
                     article_id = re.sub('\.html', '', href.split('/')[-1])
                     if div == divs[-1] and i == end - start:  # last div of last page
                         self.store(filename, self.parse(link, article_id, board), 'a')
