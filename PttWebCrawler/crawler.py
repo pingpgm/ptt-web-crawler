@@ -56,10 +56,11 @@ class PttWebCrawler(object):
                 article_id = args.a
                 self.parse_article(article_id, board)
 
-    def parse_articles(self, start, end, board, path='.', timeout=3, skip_links=list):
+    def parse_articles(self, start, end, board, path='.', timeout=3, skip_links=list, return_file_path=True):
         filename = board + '-' + str(start) + '-' + str(end) + '.json'
         filename = os.path.join(path, filename)
         self.store(filename, u'{"articles": [', 'w')
+        articles = []
         for i in range(end - start + 1):
             index = start + i
             print('Processing index:', str(index))
@@ -80,15 +81,21 @@ class PttWebCrawler(object):
                     if link in skip_links:
                         continue
                     article_id = re.sub('\.html', '', href.split('/')[-1])
-                    if div == divs[-1] and i == end - start:  # last div of last page
-                        self.store(filename, self.parse(link, article_id, board), 'a')
+                    if return_file_path:
+                        if div == divs[-1] and i == end - start:  # last div of last page
+                            self.store(filename, self.parse(link, article_id, board), 'a')
+                        else:
+                            self.store(filename, self.parse(link, article_id, board) + ',\n', 'a')
                     else:
-                        self.store(filename, self.parse(link, article_id, board) + ',\n', 'a')
+                        articles.append(self.parse(link, article_id, board, return_json_str=return_file_path))
                 except:
                     pass
             time.sleep(0.1)
-        self.store(filename, u']}', 'a')
-        return filename
+        if return_file_path:
+            self.store(filename, u']}', 'a')
+        else:
+            articles = [article for article in articles if article is not None]
+        return filename if return_file_path else articles
 
     def parse_article(self, article_id, board, path='.'):
         link = self.PTT_URL + '/bbs/' + board + '/' + article_id + '.html'
@@ -118,12 +125,12 @@ class PttWebCrawler(object):
         return meta.text
 
     @staticmethod
-    def parse(link, article_id, board, timeout=3):
+    def parse(link, article_id, board, timeout=3, return_json_str=True):
         print('Processing article:', article_id)
         resp = requests.get(url=link, cookies={'over18': '1'}, verify=VERIFY, timeout=timeout)
         if resp.status_code != 200:
             print('invalid url:', resp.url)
-            return json.dumps({"error": "invalid url"}, sort_keys=True, ensure_ascii=False)
+            return json.dumps({"error": "invalid url"}, sort_keys=True, ensure_ascii=False) if return_json_str else None
         soup = BeautifulSoup(resp.text, 'html.parser')
         main_content = soup.find(id="main-content")
         metas = main_content.select('div.article-metaline')
@@ -210,7 +217,7 @@ class PttWebCrawler(object):
             'messages': messages
         }
         # print 'original:', d
-        return json.dumps(data, sort_keys=True, ensure_ascii=False)
+        return json.dumps(data, sort_keys=True, ensure_ascii=False) if return_json_str else data
 
     @staticmethod
     def get_aid_from_url(url: str) -> (str, str):
